@@ -7,127 +7,12 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model attachment {
-  id         Int      @id @default(autoincrement())
-  leadId     Int?
-  filename   String
-  filepath   String
-  filetype   String
-  uploadedAt DateTime @default(now())
-  lead       lead?    @relation(fields: [leadId], references: [id], onDelete: Cascade, map: "Attachment_leadId_fkey")
-
-  @@index([leadId], map: "Attachment_leadId_fkey")
-}
-
-model booking {
-  id          Int            @id @default(autoincrement())
-  leadId      Int
-  unitId      Int
-  bookedById  Int
-  amount      Float?
-  status      booking_status @default(CONFIRMED)
-  bookingDate DateTime       @default(now())
-  user        user           @relation(fields: [bookedById], references: [id], map: "Booking_bookedById_fkey")
-  lead        lead           @relation(fields: [leadId], references: [id], map: "Booking_leadId_fkey")
-  unit        unit           @relation(fields: [unitId], references: [id], map: "Booking_unitId_fkey")
-
-  @@index([bookedById], map: "Booking_bookedById_fkey")
-  @@index([leadId], map: "Booking_leadId_fkey")
-  @@index([unitId], map: "Booking_unitId_fkey")
-}
-
-model building {
-  id        Int     @id @default(autoincrement())
-  name      String
-  projectId Int
-  project   project @relation(fields: [projectId], references: [id], onDelete: Cascade, map: "Building_projectId_fkey")
-  unit      unit[]
-
-  @@index([projectId], map: "Building_projectId_fkey")
-}
-
-model lead {
-  id           Int          @id @default(autoincrement())
-  name         String
-  phone        String
-  email        String?
-  source       String?
-  stage        lead_stage   @default(NEW)
-  followUpDate DateTime?
-  assignedToId Int?
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
-  attachment   attachment[]
-  booking      booking[]
-  user         user?        @relation(fields: [assignedToId], references: [id], map: "Lead_assignedToId_fkey")
-  leadnote     leadnote[]
-
-  @@index([assignedToId], map: "Lead_assignedToId_idx")
-  @@index([stage], map: "Lead_stage_idx")
-}
-
-model leadnote {
-  id        Int      @id @default(autoincrement())
-  leadId    Int
-  note      String   @db.Text
-  createdAt DateTime @default(now())
-  lead      lead     @relation(fields: [leadId], references: [id], onDelete: Cascade, map: "LeadNote_leadId_fkey")
-
-  @@index([leadId], map: "LeadNote_leadId_fkey")
-}
-
-model project {
-  id        Int        @id @default(autoincrement())
-  name      String
-  location  String?
-  createdAt DateTime   @default(now())
-  building  building[]
-}
-
-model unit {
-  id         Int         @id @default(autoincrement())
-  unitNo     String
-  type       unit_type
-  price      Float
-  status     unit_status @default(AVAILABLE)
-  buildingId Int
-  booking    booking[]
-  building   building    @relation(fields: [buildingId], references: [id], onDelete: Cascade, map: "Unit_buildingId_fkey")
-
-  @@unique([buildingId, unitNo], map: "Unit_buildingId_unitNo_key")
-}
-
-model user {
-  id        Int       @id @default(autoincrement())
-  name      String
-  email     String    @unique(map: "User_email_key")
-  password  String
-  role      user_role @default(SALES)
-  createdAt DateTime  @default(now())
-  booking   booking[]
-  lead      lead[]
-}
-
-enum unit_type {
-  APARTMENT
-  VILLA
-  PLOT
-  COMMERCIAL
-}
-
-enum unit_status {
-  AVAILABLE
-  HOLD
-  BOOKED
-  SOLD
-}
-
-enum user_role {
+enum Role {
   ADMIN
   SALES
 }
 
-enum lead_stage {
+enum LeadStage {
   NEW
   CONTACTED
   SITE_VISIT
@@ -137,7 +22,112 @@ enum lead_stage {
   LOST
 }
 
-enum booking_status {
+enum UnitType {
+  APARTMENT
+  VILLA
+  PLOT
+  COMMERCIAL
+}
+
+enum UnitStatus {
+  AVAILABLE
+  HOLD
+  BOOKED
+  SOLD
+}
+
+enum BookingStatus {
   CONFIRMED
   CANCELLED
+}
+
+model User {
+  id            Int       @id @default(autoincrement())
+  name          String
+  email         String    @unique
+  password      String
+  role          Role      @default(SALES)
+  createdAt     DateTime  @default(now())
+  assignedLeads Lead[]    @relation("AssignedLeads")
+  bookingsMade  Booking[] @relation("BookedBy")
+}
+
+model Lead {
+  id           Int          @id @default(autoincrement())
+  name         String
+  phone        String
+  email        String?
+  source       String?
+  stage        LeadStage    @default(NEW)
+  followUpDate DateTime?
+  assignedTo   User?        @relation("AssignedLeads", fields: [assignedToId], references: [id])
+  assignedToId Int?
+  notes        LeadNote[]
+  attachments  Attachment[]
+  bookings     Booking[]
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  @@index([stage])
+  @@index([assignedToId])
+}
+
+model LeadNote {
+  id        Int      @id @default(autoincrement())
+  lead      Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  leadId    Int
+  note      String   @db.Text
+  createdAt DateTime @default(now())
+}
+
+model Attachment {
+  id         Int      @id @default(autoincrement())
+  lead       Lead?    @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  leadId     Int?
+  filename   String
+  filepath   String
+  filetype   String
+  uploadedAt DateTime @default(now())
+}
+
+model Project {
+  id        Int        @id @default(autoincrement())
+  name      String
+  location  String?
+  buildings Building[]
+  createdAt DateTime   @default(now())
+}
+
+model Building {
+  id        Int      @id @default(autoincrement())
+  name      String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  projectId Int
+  units     Unit[]
+}
+
+model Unit {
+  id         Int        @id @default(autoincrement())
+  unitNo     String
+  type       UnitType
+  price      Float
+  status     UnitStatus @default(AVAILABLE)
+  building   Building   @relation(fields: [buildingId], references: [id], onDelete: Cascade)
+  buildingId Int
+  bookings   Booking[]
+
+  @@unique([buildingId, unitNo])
+}
+
+model Booking {
+  id          Int           @id @default(autoincrement())
+  lead        Lead          @relation(fields: [leadId], references: [id])
+  leadId      Int
+  unit        Unit          @relation(fields: [unitId], references: [id])
+  unitId      Int
+  bookedBy    User          @relation("BookedBy", fields: [bookedById], references: [id])
+  bookedById  Int
+  amount      Float?
+  status      BookingStatus @default(CONFIRMED)
+  bookingDate DateTime      @default(now())
 }
