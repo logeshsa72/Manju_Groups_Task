@@ -1,0 +1,133 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  SALES
+}
+
+enum LeadStage {
+  NEW
+  CONTACTED
+  SITE_VISIT
+  INTERESTED
+  NEGOTIATION
+  BOOKED
+  LOST
+}
+
+enum UnitType {
+  APARTMENT
+  VILLA
+  PLOT
+  COMMERCIAL
+}
+
+enum UnitStatus {
+  AVAILABLE
+  HOLD
+  BOOKED
+  SOLD
+}
+
+enum BookingStatus {
+  CONFIRMED
+  CANCELLED
+}
+
+model User {
+  id            Int       @id @default(autoincrement())
+  name          String
+  email         String    @unique
+  password      String
+  role          Role      @default(SALES)
+  createdAt     DateTime  @default(now())
+  assignedLeads Lead[]    @relation("AssignedLeads")
+  bookingsMade  Booking[] @relation("BookedBy")
+}
+
+model Lead {
+  id           Int          @id @default(autoincrement())
+  name         String
+  phone        String
+  email        String?
+  source       String?
+  stage        LeadStage    @default(NEW)
+  followUpDate DateTime?
+  assignedTo   User?        @relation("AssignedLeads", fields: [assignedToId], references: [id])
+  assignedToId Int?
+  notes        LeadNote[]
+  attachments  Attachment[]
+  bookings     Booking[]
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  @@index([stage])
+  @@index([assignedToId])
+}
+
+model LeadNote {
+  id        Int      @id @default(autoincrement())
+  lead      Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  leadId    Int
+  note      String   @db.Text
+  createdAt DateTime @default(now())
+}
+
+model Attachment {
+  id         Int      @id @default(autoincrement())
+  lead       Lead?    @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  leadId     Int?
+  filename   String
+  filepath   String
+  filetype   String
+  uploadedAt DateTime @default(now())
+}
+
+model Project {
+  id        Int        @id @default(autoincrement())
+  name      String
+  location  String?
+  buildings Building[]
+  createdAt DateTime   @default(now())
+}
+
+model Building {
+  id        Int      @id @default(autoincrement())
+  name      String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  projectId Int
+  units     Unit[]
+}
+
+model Unit {
+  id         Int        @id @default(autoincrement())
+  unitNo     String
+  type       UnitType
+  price      Float
+  status     UnitStatus @default(AVAILABLE)
+  building   Building   @relation(fields: [buildingId], references: [id], onDelete: Cascade)
+  buildingId Int
+  bookings   Booking[]
+
+  @@unique([buildingId, unitNo])
+}
+
+model Booking {
+  id          Int           @id @default(autoincrement())
+  lead        Lead          @relation(fields: [leadId], references: [id])
+  leadId      Int
+  unit        Unit          @relation(fields: [unitId], references: [id])
+  unitId      Int
+  bookedBy    User          @relation("BookedBy", fields: [bookedById], references: [id])
+  bookedById  Int
+  amount      Float?
+  status      BookingStatus @default(CONFIRMED)
+  bookingDate DateTime      @default(now())
+}
